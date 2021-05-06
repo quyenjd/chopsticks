@@ -18,7 +18,7 @@ The code uses `windows.h` and other Windows API tools. It is recommended you run
 
 ## Customize rules
 
-You can switch/change the `static` values in the file [State.hpp](include/State.hpp) for your own rule/variant. Supported parameters:
+You can switch/change the `static` variables in the file [State.hpp](include/State.hpp) for your own rules/variants. Supported parameters:
 
 ```
 static const short white_left_hand_max  = 5;
