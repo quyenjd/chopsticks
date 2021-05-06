@@ -244,6 +244,7 @@ third_input:
             }
 
 finalize:
+
             try
             {
                 game_handler.make_move(move);
