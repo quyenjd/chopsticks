@@ -4,29 +4,33 @@
 #include <iostream>
 #include <stdexcept>
 
-void Evaluator::update_node_util(node_data *node, state current, state tmp, move_data move, int &move_evaluated)
+void Evaluator::update_node_util(bool is_draw, node_data *node, state current, state tmp, move_data move, int &move_evaluated)
 {
     const int tmp_hashed = tmp.get_hash();
-    node->score = node->score * node->moves.size();
+    node->winning *= node->moves.size();
+    node->drawing *= node->moves.size();
+    node->losing *= node->moves.size();
 
-    double bonus = table[tmp_hashed].winning_lines / (table[tmp_hashed].winning_lines + table[tmp_hashed].losing_lines);
-    bonus = (isnan(bonus) ? 0.0 : bonus) - 0.5;
-
-    if (tmp.white_turn == current.white_turn)
-    {
-        node->winning_lines += table[tmp_hashed].winning_lines;
-        node->losing_lines += table[tmp_hashed].losing_lines;
-        node->score += table[tmp_hashed].score + bonus;
-    }
+    if (is_draw)
+        ++node->drawing;
     else
     {
-        node->winning_lines += table[tmp_hashed].losing_lines;
-        node->losing_lines += table[tmp_hashed].winning_lines;
-        node->score -= table[tmp_hashed].score + bonus;
+        if (tmp.white_turn == current.white_turn)
+        {
+            node->winning += table[tmp_hashed].winning;
+            node->losing += table[tmp_hashed].losing;
+        }
+        else
+        {
+            node->winning += table[tmp_hashed].losing;
+            node->losing += table[tmp_hashed].winning;
+        }
     }
 
     node->moves.push_back(move);
-    node->score /= node->moves.size();
+    node->winning /= node->moves.size();
+    node->drawing /= node->moves.size();
+    node->losing /= node->moves.size();
 
     ++move_evaluated;
 }
@@ -44,10 +48,6 @@ void Evaluator::search(int &move_evaluated,
 
     if (!node->evaluated)
     {
-        // the state reaches the one that is already in the stack (cycle)
-        if ((*in_stack)[hashed])
-            return;
-
         (*in_stack)[hashed] = true;
         max_depth = std::max(max_depth, depth);
 
@@ -63,12 +63,12 @@ void Evaluator::search(int &move_evaluated,
                 if ((current.white_turn && winner == 'W') ||
                    (!current.white_turn && winner == 'B'))
                 {
-                    ++node->winning_lines;
-                    node->score = 1;
+                    ++node->winning;
+                    node->score = 2;
                 }
                 else
                 {
-                    ++node->losing_lines;
+                    ++node->losing;
                     node->score = -1;
                 }
 
@@ -85,8 +85,16 @@ void Evaluator::search(int &move_evaluated,
                     try
                     {
                         tmp.make_move(my_side, op_side);
-                        search(move_evaluated, max_depth, tmp, in_stack, depth + 1);
-                        update_node_util(node, current, tmp, move_data(my_side, op_side), move_evaluated);
+
+                        // if the state reaches the one that is already in the stack (cycle)
+                        const bool is_cycle = (*in_stack)[tmp.get_hash()];
+
+                        if (!is_cycle)
+                        {
+                            search(move_evaluated, max_depth, tmp, in_stack, depth + 1);
+                            node->score -= table[tmp.get_hash()].score;
+                        }
+                        update_node_util(is_cycle, node, current, tmp, move_data(my_side, op_side), move_evaluated);
                     }
                     catch (std::runtime_error e) {}
                 }
@@ -100,8 +108,16 @@ void Evaluator::search(int &move_evaluated,
                 try
                 {
                     tmp.make_split_move(i, -i);
-                    search(move_evaluated, max_depth, tmp, in_stack, depth + 1);
-                    update_node_util(node, current, tmp, move_data(i, -i, true), move_evaluated);
+
+                    // if the state reaches the one that is already in the stack (cycle)
+                    const bool is_cycle = (*in_stack)[tmp.get_hash()];
+
+                    if (!is_cycle)
+                    {
+                        search(move_evaluated, max_depth, tmp, in_stack, depth + 1);
+                        node->score += table[tmp.get_hash()].score * (state::splits_as_moves ? -1 : 1);
+                    }
+                    update_node_util(is_cycle, node, current, tmp, move_data(i, -i, true), move_evaluated);
                 }
                 catch (std::runtime_error e) {}
             }
@@ -111,6 +127,17 @@ void Evaluator::search(int &move_evaluated,
 
         (*in_stack)[hashed] = false;
         node->evaluated = true;
+
+        if (!node->moves.empty())
+            (node->score *= (double)0.3 / node->moves.size()) += (node->winning + node->drawing * 0.1 - node->losing) * 0.7;
+        else
+            node->score = node->winning + node->drawing * 0.1 - node->losing;
+
+        // if splits are limited, the more we use the more the score is decreased
+        if (current.white_turn && current.white_split_max > 0)
+            node->score -= exp(((double)1.0 - (double)current.white_split / current.white_split_max) / 4.0) - 1.0;
+        if (!current.white_turn && current.black_split_max > 0)
+            node->score -= exp(((double)1.0 - (double)current.black_split / current.black_split_max) / 4.0) - 1.0;
     }
 
     if (!depth)
@@ -159,29 +186,30 @@ move_data Evaluator::get_evaluated_next_move(state game_state)
         return evaluated_next_moves[hashed];
 
     node_data node = get_node_data(game_state);
-    move_data chosen_move, chosen_split_move;
-    double max_score = -5.0, min_score = 5.0;
-    bool has_split_moves = false;
+    move_data chosen_move, chosen_same_turn_move;
+    double max_score = -10.0, min_score = 10.0;
+    bool has_same_turn_moves = false;
 
     for (move_data move : node.moves)
     {
         state tmp = game_state;
         if (move.is_split)
-        {
             tmp.make_split_move(move.fparam, move.sparam);
+        else
+            tmp.make_move((char)move.fparam, (char)move.sparam);
 
-            const node_data node2 = get_node_data(tmp.get_hash());
+        const node_data node2 = get_node_data(tmp.get_hash());
+        if (tmp.white_turn == game_state.white_turn)
+        {
             if (node2.score > max_score)
             {
                 max_score = node2.score;
-                chosen_split_move = move;
-                has_split_moves = true;
+                chosen_same_turn_move = move;
+                has_same_turn_moves = true;
             }
         }
         else
         {
-            tmp.make_move((char)move.fparam, (char)move.sparam);
-            const node_data node2 = get_node_data(tmp.get_hash());
             if (node2.score < min_score)
             {
                 min_score = node2.score;
@@ -190,7 +218,7 @@ move_data Evaluator::get_evaluated_next_move(state game_state)
         }
     }
 
-    return (evaluated_next_moves[hashed] = has_split_moves ?
-        (max_score - node.score > node.score - min_score ? chosen_split_move : chosen_move) :
+    return (evaluated_next_moves[hashed] = has_same_turn_moves ?
+        (max_score - node.score > node.score - min_score ? chosen_same_turn_move : chosen_move) :
             chosen_move);
 }

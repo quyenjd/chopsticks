@@ -51,10 +51,10 @@ char UI::menu()
     while (true)
     {
         system("cls");
-        std::cout << "Press W to play white, B to play black, or Q to quit the game... ";
+        std::cout << "Press W to play white, B to play black, C to watch computer vs. computer, or Q to quit the game... ";
 
-        char c = getch();
-        if (c == 'W' || c == 'w' || c == 'B' || c == 'b' || c == 'Q' || c == 'q')
+        char c = toupper(getch());
+        if (c == 'W' || c == 'B' || c == 'Q' || c == 'C')
         {
             std::cout << std::endl;
             return c;
@@ -62,10 +62,11 @@ char UI::menu()
     }
 }
 
-void UI::game(Evaluator *evaluator, bool white_turn)
+void UI::game(Evaluator *evaluator, bool white_turn, bool two_computers)
 {
     state game_state;
     UI game_handler(game_state);
+    bool which_computer = false;
 
     while (true)
     {
@@ -85,22 +86,28 @@ void UI::game(Evaluator *evaluator, bool white_turn)
                 std::cout << (i ? " | " : "    ") << moves[i].get_displayable();
 
         const node_data node = evaluator->get_node_data(game_state);
-        const double total = node.winning_lines + node.losing_lines;
         std::cout << std::endl << std::endl
                   << "--  Evaluation:" << std::endl
-                  << "        [ Score]  " << node.score << std::endl
-                  << "        [  Wins]  " << (node.winning_lines / total) << std::endl
-                  << "        [Losses]  " << (node.losing_lines / total);
+                  << "        [Score]  " << node.score << std::endl
+                  << "        [ %Win]  " << node.winning << std::endl
+                  << "        [%Draw]  " << node.drawing << std::endl
+                  << "        [%Loss]  " << node.losing;
 
         to_row_col(17, 0);
         if (!game_state.is_over())
         {
-            if (game_state.white_turn == white_turn)
+            if (!two_computers && game_state.white_turn == white_turn)
                 std::cout << "    Your move:  ";
             else
             {
-                std::cout << "    Computer is playing... ";
-                game_handler.make_move(evaluator->get_evaluated_next_move(game_state));
+                std::cout << "    Computer " << (two_computers ? (std::to_string(1 + which_computer) + " ") : "") << "is playing... ";
+
+                const move_data move = evaluator->get_evaluated_next_move(game_state);
+                game_handler.make_move(move);
+
+                to_row_col(17, 4);
+                std::cout << "Computer " << (two_computers ? (std::to_string(1 + which_computer) + " ") : "") << "has played: " << move.get_displayable() << " | Press any key to continue... ";
+                getch();
                 continue;
             }
         }
@@ -110,7 +117,7 @@ void UI::game(Evaluator *evaluator, bool white_turn)
                       << "    Press any key to continue or Q to exit... ";
             char ch = getch();
             if (toupper(ch) != 'Q')
-                game(evaluator, !white_turn);
+                game(evaluator, two_computers || !white_turn, two_computers);
             return;
         }
 
@@ -257,8 +264,11 @@ void UI::run()
 
     char user = menu();
 
-    if (user != 'Q' && user != 'q')
-        game(evaluator, toupper(user) == 'W');
+    if (user == 'C')
+        game(evaluator, true, true);
+    else
+    if (user != 'Q')
+        game(evaluator, user == 'W', false);
 
     system("cls");
     std::cout << "Good bye!" << std::endl;

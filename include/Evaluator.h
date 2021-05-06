@@ -17,7 +17,7 @@ struct move_data
     std::string get_displayable() const
     {
         if (is_split)
-            return std::string("T") +
+            return std::string("S") +
                    (fparam < 0 ? "R" : fparam == 0 ? "-" : sparam < 0 ? "L" : "-") +
                    (abs(fparam) == abs(sparam) ? std::to_string(abs(fparam)) : "-");
         else
@@ -31,7 +31,7 @@ struct move_data
 
 struct node_data
 {
-    double winning_lines = 0, losing_lines = 0, score = 0;
+    double winning = 0, drawing = 0, losing = 0, score = 0;
     bool evaluated = false;
     std::vector<move_data> moves;
 };
@@ -41,7 +41,7 @@ class Evaluator
 private:
     std::unordered_map<int, node_data> table;
     std::unordered_map<int, move_data> evaluated_next_moves;
-    void update_node_util(node_data *node, state current, state tmp, move_data move, int &move_evaluated);
+    void update_node_util(bool is_draw, node_data *node, state current, state tmp, move_data move, int &move_evaluated);
     void search(int &state_evaluated,
                 int &max_depth,
                 state current = state(),

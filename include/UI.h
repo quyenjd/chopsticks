@@ -11,7 +11,7 @@ private:
     state game_state;
     std::vector<move_data> moves;
     static char menu();
-    static void game(Evaluator *evaluator, bool white_turn);
+    static void game(Evaluator *evaluator, bool white_turn, bool two_computers);
 
 public:
     UI();

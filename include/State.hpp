@@ -33,8 +33,8 @@ public:
     static const short white_right_hand_max = 5;
     static const short black_left_hand_max  = 5;
     static const short black_right_hand_max = 5;
-    static const short white_split_max = 1;
-    static const short black_split_max = 1;
+    static const short white_split_max = -1; // negative value for unlimited splits
+    static const short black_split_max = -1; // negative value for unlimited splits
 
     static const bool splits_as_moves = true;
     static const bool allow_sacrifical_splits = false;
@@ -66,14 +66,14 @@ public:
             white_right_hand < white_right_hand_max &&
             black_left_hand  < black_left_hand_max  &&
             black_right_hand < black_right_hand_max &&
-            white_split >= 0 &&
-            black_split >= 0 &&
+            (white_split_max < 0 || white_split >= 0) &&
+            (black_split_max < 0 || black_split >= 0) &&
             (white_left_hand || white_right_hand || black_left_hand || black_right_hand);
     }
 
     bool is_over() const
     {
-        return (!white_left_hand && !white_right_hand) != (!black_left_hand && !black_right_hand);
+        return is_valid() && (!white_left_hand && !white_right_hand) != (!black_left_hand && !black_right_hand);
     }
 
     char get_winner() const
@@ -88,7 +88,7 @@ public:
     {
         can_move();
 
-        if (!(white_turn ? white_split : black_split))
+        if ((white_turn ? white_split_max : black_split_max) < 0 && !(white_turn ? white_split : black_split))
             throw std::runtime_error("Invalid move: No split moves remaining for " + std::string(white_turn ? "WHITE" : "BLACK"));
 
         if (1LL * left_change * right_change >= 0)
@@ -186,14 +186,20 @@ public:
 
     int get_hash() const
     {
+        if (!is_valid())
+            throw std::runtime_error("Invalid state: Cannot get hash of invalid games");
+
         int result = white_turn;
 
         (result *= white_left_hand_max) += white_left_hand;
         (result *= white_right_hand_max) += white_right_hand;
         (result *= black_left_hand_max) += black_left_hand;
         (result *= black_right_hand_max) += black_right_hand;
-        (result *= white_split_max + 1) += white_split;
-        (result *= black_split_max + 1) += black_split;
+
+        if (white_split_max > 0)
+            (result *= white_split_max + 1) += white_split;
+        if (black_split_max > 0)
+            (result *= black_split_max + 1) += black_split;
 
         return result;
     }
@@ -202,11 +208,17 @@ public:
     {
         state result;
 
-        result.black_split = hashed % (black_split_max + 1);
-        hashed /= black_split_max + 1;
+        if (black_split_max > 0)
+        {
+            result.black_split = hashed % (black_split_max + 1);
+            hashed /= black_split_max + 1;
+        }
 
-        result.white_split = hashed % (white_split_max + 1);
-        hashed /= white_split_max + 1;
+        if (white_split_max > 0)
+        {
+            result.white_split = hashed % (white_split_max + 1);
+            hashed /= white_split_max + 1;
+        }
 
         result.black_right_hand = hashed % black_right_hand_max;
         hashed /= black_right_hand_max;
@@ -223,7 +235,7 @@ public:
         result.white_turn = hashed;
 
         if (!result.is_valid())
-            throw std::runtime_error("Parse error: Invalid hash number");
+            throw std::runtime_error("Parse error: Invalid game hash");
 
         return result;
     }
@@ -240,13 +252,23 @@ public:
             << std::endl
             << " " << (valid && white_turn ? ">>" : "  ") << " White  - L - R -" << std::endl
             << "           | " << white_left_hand << " | " << white_right_hand << " |" << std::endl
-            << "           - - - - -" << std::endl
-            << "                      S: " << white_split << " left" << std::endl
-            << " " << (valid && !white_turn ? ">>" : "  ") << " Black  - L - R -" << std::endl
+            << "           - - - - -" << std::endl;
+
+        if (white_split_max < 0)
+            oss << "                      S: unlimited" << std::endl;
+        else
+            oss << "                      S: " << white_split << " left" << std::endl;
+
+        oss << " " << (valid && !white_turn ? ">>" : "  ") << " Black  - L - R -" << std::endl
             << "           | " << black_left_hand << " | " << black_right_hand << " |" << std::endl
-            << "           - - - - -" << std::endl
-            << "                      S: " << black_split << " left" << std::endl
-            << std::endl
+            << "           - - - - -" << std::endl;
+
+        if (black_split_max < 0)
+            oss << "                      S: unlimited" << std::endl;
+        else
+            oss << "                      S: " << black_split << " left" << std::endl;
+
+        oss << std::endl
             << " " << (!valid ? ">>" : "  ") << (valid ? " GAME ON!" : " GAME IS OVER!") << std::endl
             << std::endl;
 
