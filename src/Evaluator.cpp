@@ -4,7 +4,35 @@
 #include <iostream>
 #include <stdexcept>
 
-void Evaluator::update_node_util(bool is_draw, node_data *node, state current, state tmp, move_data move, int &move_evaluated)
+double Evaluator::calculate_final_score (std::vector<double> scores)
+{
+    if (scores.empty())
+        return 0;
+
+    double total = 0;
+    std::vector<double> possibilities;
+
+    for (double score : scores)
+    {
+        double possibility = exp((score - SCORE_RANGE) / ANTI_CURVATURE);
+        possibilities.push_back(possibility);
+        total += possibility;
+    }
+
+    double accumulative = 0;
+    for (size_t i = 0; i < scores.size(); ++i)
+        accumulative += scores[i] * possibilities[i];
+
+    return accumulative / total;
+}
+
+void Evaluator::update_node_util(bool is_draw,
+                                 node_data *node,
+                                 state current,
+                                 state tmp,
+                                 move_data move,
+                                 int &move_evaluated,
+                                 std::vector<double> &scores)
 {
     const int tmp_hashed = tmp.get_hash();
     node->winning *= node->moves.size();
@@ -31,6 +59,9 @@ void Evaluator::update_node_util(bool is_draw, node_data *node, state current, s
     node->winning /= node->moves.size();
     node->drawing /= node->moves.size();
     node->losing /= node->moves.size();
+
+    scores.push_back(is_draw ? -DRAW_PENALTY :
+                    (table[tmp_hashed].score * (tmp.white_turn == current.white_turn ? 1 : -1)));
 
     ++move_evaluated;
 }
@@ -64,16 +95,18 @@ void Evaluator::search(int &move_evaluated,
                    (!current.white_turn && winner == 'B'))
                 {
                     ++node->winning;
-                    node->score = 2;
+                    node->score = SCORE_RANGE;
                 }
                 else
                 {
                     ++node->losing;
-                    node->score = -1;
+                    node->score = -SCORE_RANGE;
                 }
 
                 break;
             }
+
+            std::vector<double> scores;
 
             // hand moves
             const char sides[] = { 'L', 'R' };
@@ -90,11 +123,8 @@ void Evaluator::search(int &move_evaluated,
                         const bool is_cycle = (*in_stack)[tmp.get_hash()];
 
                         if (!is_cycle)
-                        {
                             search(move_evaluated, max_depth, tmp, in_stack, depth + 1);
-                            node->score -= table[tmp.get_hash()].score;
-                        }
-                        update_node_util(is_cycle, node, current, tmp, move_data(my_side, op_side), move_evaluated);
+                        update_node_util(is_cycle, node, current, tmp, move_data(my_side, op_side), move_evaluated, scores);
                     }
                     catch (std::runtime_error e) {}
                 }
@@ -113,31 +143,29 @@ void Evaluator::search(int &move_evaluated,
                     const bool is_cycle = (*in_stack)[tmp.get_hash()];
 
                     if (!is_cycle)
-                    {
                         search(move_evaluated, max_depth, tmp, in_stack, depth + 1);
-                        node->score += table[tmp.get_hash()].score * (state::splits_as_moves ? -1 : 1);
-                    }
-                    update_node_util(is_cycle, node, current, tmp, move_data(i, -i, true), move_evaluated);
+                    update_node_util(is_cycle, node, current, tmp, move_data(i, -i, true), move_evaluated, scores);
                 }
                 catch (std::runtime_error e) {}
             }
 
+            node->score = calculate_final_score(scores);
+
             break;
         }
 
+        // penalty for having less splits than the opponent
+        if ((current.white_turn ? current.white_split : current.black_split) <
+            (current.white_turn ? current.black_split : current.white_split))
+            node->score -= LESS_SPLIT_PENALTY;
+        else
+        // award for having more splits than the opponent
+        if ((current.white_turn ? current.white_split : current.black_split) >
+            (current.white_turn ? current.black_split : current.white_split))
+            node->score += MORE_SPLIT_AWARD;
+
         (*in_stack)[hashed] = false;
         node->evaluated = true;
-
-        if (!node->moves.empty())
-            (node->score *= (double)0.3 / node->moves.size()) += (node->winning + node->drawing * 0.1 - node->losing) * 0.7;
-        else
-            node->score = node->winning + node->drawing * 0.1 - node->losing;
-
-        // if splits are limited, the more we use the more the score is decreased
-        if (current.white_turn && current.white_split_max > 0)
-            node->score -= exp(((double)1.0 - (double)current.white_split / current.white_split_max) / 4.0) - 1.0;
-        if (!current.white_turn && current.black_split_max > 0)
-            node->score -= exp(((double)1.0 - (double)current.black_split / current.black_split_max) / 4.0) - 1.0;
     }
 
     if (!depth)
@@ -187,7 +215,7 @@ move_data Evaluator::get_evaluated_next_move(state game_state)
 
     node_data node = get_node_data(game_state);
     move_data chosen_move, chosen_same_turn_move;
-    double max_score = -10.0, min_score = 10.0;
+    double max_score = -SCORE_RANGE * 2.0, min_score = SCORE_RANGE * 2.0;
     bool has_same_turn_moves = false;
 
     for (move_data move : node.moves)

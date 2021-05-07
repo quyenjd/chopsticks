@@ -1,6 +1,7 @@
 #include "UI.h"
 #include <conio.h>
 #include <ctype.h>
+#include <iomanip>
 #include <iostream>
 #include <stdlib.h>
 #include <windows.h>
@@ -106,8 +107,14 @@ void UI::game(Evaluator *evaluator, bool white_turn, bool two_computers)
                 game_handler.make_move(move);
 
                 to_row_col(17, 4);
-                std::cout << "Computer " << (two_computers ? (std::to_string(1 + which_computer) + " ") : "") << "has played: " << move.get_displayable() << " | Press any key to continue... ";
-                getch();
+                std::cout << "Computer " << (two_computers ? (std::to_string(1 + which_computer) + " ") : "") << "has played: " << move.get_displayable() << " | Press any key to continue or Q to exit... ";
+
+                which_computer ^= 1;
+
+                char ch = getch();
+                if (toupper(ch) == 'Q')
+                    return;
+
                 continue;
             }
         }
@@ -141,7 +148,7 @@ first_input:
             if (ch == KEY_BACKSPACE)
             {
                 to_row_col(17, 16);
-                std::cout << "[ Quit the game? (y/n)   ]";
+                std::cout << "[ End this game? (y/n)   ]";
                 to_row_col(17, 39);
                 while (toupper(ch) != 'Y' && toupper(ch) != 'N')
                     ch = getch();
@@ -261,15 +268,22 @@ finalize:
 
 void UI::run()
 {
+    std::cout << std::fixed << std::setprecision(15);
+
     Evaluator *evaluator = new Evaluator();
 
-    char user = menu();
+    char user = '\0';
 
-    if (user == 'C')
-        game(evaluator, true, true);
-    else
-    if (user != 'Q')
-        game(evaluator, user == 'W', false);
+    while (user != 'Q')
+    {
+        user = menu();
+
+        if (user == 'C')
+            game(evaluator, true, true);
+        else
+        if (user != 'Q')
+            game(evaluator, user == 'W', false);
+    }
 
     system("cls");
     std::cout << "Good bye!" << std::endl;

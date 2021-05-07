@@ -29,13 +29,13 @@ static const short white_split_max = -1; // negative value for unlimited splits
 static const short black_split_max = -1; // negative value for unlimited splits
 
 static const bool splits_as_moves = true;
-static const bool allow_sacrifical_splits = false;
+static const bool allow_sacrifical_splits = true;
 static const bool allow_regenerative_splits = true;
 ```
 
 ## Issues
 
-You tell me! :slightly_smiling_face:
+- Computer does not always select the best moves as the evaluation is based on probabilities.
 
 ## License
 

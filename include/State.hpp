@@ -37,7 +37,7 @@ public:
     static const short black_split_max = -1; // negative value for unlimited splits
 
     static const bool splits_as_moves = true;
-    static const bool allow_sacrifical_splits = false;
+    static const bool allow_sacrifical_splits = true;
     static const bool allow_regenerative_splits = true;
 
     short white_left_hand;

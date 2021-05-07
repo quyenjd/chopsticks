@@ -6,6 +6,12 @@
 #include <unordered_map>
 #include <vector>
 
+#define LESS_SPLIT_PENALTY 0.3 // penalty if we have less splits than the opponent
+#define MORE_SPLIT_AWARD   0.2 // award if we have more
+#define DRAW_PENALTY       1.0 // penalty if the move leads to a draw
+#define SCORE_RANGE        5.0 // winning states are evaluated +SCORE_RANGE, losing states -SCORE_RANGE
+#define ANTI_CURVATURE     1.5 // how much the exp function resists curvature
+
 struct move_data
 {
     int fparam, sparam;
@@ -41,7 +47,15 @@ class Evaluator
 private:
     std::unordered_map<int, node_data> table;
     std::unordered_map<int, move_data> evaluated_next_moves;
-    void update_node_util(bool is_draw, node_data *node, state current, state tmp, move_data move, int &move_evaluated);
+
+    double calculate_final_score(std::vector<double> scores);
+    void update_node_util(bool is_draw,
+                          node_data *node,
+                          state current,
+                          state tmp,
+                          move_data move,
+                          int &move_evaluated,
+                          std::vector<double> &scores);
     void search(int &state_evaluated,
                 int &max_depth,
                 state current = state(),
