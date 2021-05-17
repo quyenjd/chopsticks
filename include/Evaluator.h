@@ -1,19 +1,33 @@
 #ifndef EVALUATOR_H
 #define EVALUATOR_H
 
+#include "HashMap.hpp"
 #include "State.hpp"
+#include "Thread.hpp"
+#include <condition_variable>
+#include <mutex>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
-#define LESS_SPLIT_PENALTY 0.3 // penalty if we have less splits than the opponent
-#define MORE_SPLIT_AWARD   0.2 // award if we have more
-#define DRAW_PENALTY       1.0 // penalty if the move leads to a draw
-#define SCORE_RANGE        5.0 // winning states are evaluated +SCORE_RANGE, losing states -SCORE_RANGE
-#define ANTI_CURVATURE     1.5 // how much the exp function resists curvature
+#define EPSILON 1e-6
 
-struct move_data
+#define EVALUATION_DEPTH 24   // depth of minimax evaluation
+#define ABS_SCORE        5.0  // winning states are evaluated +ABS_RANGE, losing states -ABS_RANGE
+#define SCORE_RANGE      10.0 // scores may not exceed this range at all cost
+#define SPLIT_PENALTY    0.2  // maximum penalty for split (if splits are limited)
+
+enum evaluation_state
 {
+    MOVE_EVALUATED = 2,
+    MOVE_EVALUATING = 1,
+    MOVE_TO_BE_EVALUATED = 0
+};
+
+class move_data
+{
+public:
     int fparam, sparam;
     bool is_split;
 
@@ -33,41 +47,112 @@ struct move_data
                    (toupper(sparam) == 'L' || toupper(sparam) == 'R' ?
                    (char)toupper(sparam) : '-');
     }
+
+    static move_data parse_displayable(std::string displayable)
+    {
+        static const std::string error_msg = "Move parsing failed: Invalid displayable format";
+        move_data move;
+
+        for (size_t i = 0; i < displayable.length(); ++i)
+            displayable[i] = toupper(displayable[i]);
+
+        if (displayable.length() < 2)
+            throw std::runtime_error(error_msg);
+        else
+        if (displayable.length() == 2)
+        {
+            if (displayable[0] == 'L')
+                move.fparam = 'L';
+            else
+            if (displayable[0] == 'R')
+                move.fparam = 'R';
+            else
+                throw std::runtime_error(error_msg);
+
+            if (displayable[1] == 'L')
+                move.sparam = 'L';
+            else
+            if (displayable[1] == 'R')
+                move.sparam = 'R';
+            else
+                throw std::runtime_error(error_msg);
+        }
+        else
+        {
+            if (displayable[0] != 'S')
+                throw std::runtime_error(error_msg);
+            if (displayable[1] != 'L' && displayable[1] != 'R')
+                throw std::runtime_error(error_msg);
+
+            move.fparam = displayable[1] == 'L' ? 1 : -1;
+            move.sparam = displayable[1] == 'R' ? 1 : -1;
+
+            const int change = std::stoi(displayable.substr(2));
+            move.fparam *= change;
+            move.sparam *= change;
+            move.is_split = true;
+        }
+
+        if (!move.is_valid())
+            throw std::runtime_error(error_msg);
+
+        return move;
+    }
+
+    bool is_valid() const
+    {
+        return is_split ? (fparam != 0 && fparam == -sparam) :
+                         ((toupper(fparam) == 'L' || toupper(fparam) == 'R') &&
+                          (toupper(sparam) == 'L' || toupper(sparam) == 'R'));
+    }
 };
 
-struct node_data
+class node_data
 {
-    double winning = 0, drawing = 0, losing = 0, score = 0;
-    bool evaluated = false;
-    std::vector<move_data> moves;
+public:
+    double score = 0;
+    int evaluated_depth = 0;
+    move_data best_move;
 };
 
 class Evaluator
 {
 private:
-    std::unordered_map<int, node_data> table;
-    std::unordered_map<int, move_data> evaluated_next_moves;
+    class evaluating_node_data : public node_data
+    {
+    public:
+        double alpha = -SCORE_RANGE, beta = SCORE_RANGE;
+        Thread::HashMap<std::string, evaluation_state> moves;
+        bool evaluated_marker = false;
+    };
 
-    double calculate_final_score(std::vector<double> scores);
-    void update_node_util(bool is_draw,
-                          node_data *node,
-                          state current,
-                          state tmp,
-                          move_data move,
-                          int &move_evaluated,
-                          std::vector<double> &scores);
-    void search(int &state_evaluated,
-                int &max_depth,
-                state current = state(),
-                std::unordered_map<int, bool> *in_stack = new std::unordered_map<int, bool>(),
-                int depth = 0);
+    Thread::HashMap<int, evaluating_node_data> table;
+    Thread::HashMap<std::string, bool> in_stack;
+    bool evaluated_marker = false;
+    Thread::ThreadPool Pool;
+    int branch_id_counter;
+    Thread::Atomic<size_t> state_evaluated;
+
+    void calculate_original_score (state current, evaluating_node_data &node);
+    void after_search (std::tuple<move_data, state, int> st,
+                       evaluating_node_data &node,
+                       int depth,
+                       bool maximizing,
+                       double &alpha,
+                       double &beta);
+    void search(state current,
+                std::vector<int> branch = { 0 },
+                int depth = EVALUATION_DEPTH,
+                double alpha = -ABS_SCORE,
+                double beta = ABS_SCORE,
+                bool maximizing = true);
 
 public:
-    Evaluator();
-    node_data get_node_data(int hash_state) const;
-    node_data get_node_data(state game_state) const;
-    move_data get_evaluated_next_move(int hash_state);
-    move_data get_evaluated_next_move(state game_state);
+    node_data get_node_data(int hash_state);
+    node_data get_node_data(state game_state);
+    void evaluate_next_move(int hash_state);
+    void evaluate_next_move(state game_state);
+    size_t get_last_number_of_evaluated_states();
 };
 
 #endif // EVALUATOR_H

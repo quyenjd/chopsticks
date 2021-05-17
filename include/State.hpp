@@ -39,6 +39,7 @@ public:
     static const bool splits_as_moves = true;
     static const bool allow_sacrifical_splits = true;
     static const bool allow_regenerative_splits = true;
+    static const bool meta_variant = false;
 
     short white_left_hand;
     short white_right_hand;
@@ -88,7 +89,7 @@ public:
     {
         can_move();
 
-        if ((white_turn ? white_split_max : black_split_max) < 0 && !(white_turn ? white_split : black_split))
+        if ((white_turn ? white_split_max : black_split_max) > 0 && !(white_turn ? white_split : black_split))
             throw std::runtime_error("Invalid move: No split moves remaining for " + std::string(white_turn ? "WHITE" : "BLACK"));
 
         if (1LL * left_change * right_change >= 0)
@@ -131,16 +132,21 @@ public:
         {
             if (saved_white_left_hand == white_right_hand &&
                 saved_white_right_hand == white_left_hand)
-                throw std::runtime_error("Invalid move: Hand-alternating split moves are not allowed");
+                throw std::runtime_error("Invalid move: Hand-switching split moves are not allowed");
         }
         else
         {
             if (saved_black_left_hand == black_right_hand &&
                 saved_black_right_hand == black_left_hand)
-                throw std::runtime_error("Invalid move: Hand-alternating split moves are not allowed");
+                throw std::runtime_error("Invalid move: Hand-switching split moves are not allowed");
         }
 
         after_move(true);
+
+        if (!meta_variant &&
+           (white_left_hand + white_right_hand != saved_white_left_hand + saved_white_right_hand ||
+            black_left_hand + black_right_hand != saved_black_left_hand + saved_black_right_hand))
+            throw std::runtime_error("Invalid move: Subtracting split moves are allowed in meta variant only");
     }
 
     void make_move(char my_side, char op_side)
@@ -249,6 +255,7 @@ public:
             << "\\  Splits alter turns  " << (splits_as_moves ? "YES" : "NO") << std::endl
             << "\\  Sacrificial splits  " << (allow_sacrifical_splits ? "ALLOWED" : "NOT ALLOWED") << std::endl
             << "\\ Regenerative splits  " << (allow_regenerative_splits ? "ALLOWED" : "NOT ALLOWED") << std::endl
+            << "\\        Meta variant  " << (meta_variant ? "YES" : "NO") << std::endl
             << std::endl
             << " " << (valid && white_turn ? ">>" : "  ") << " White  - L - R -" << std::endl
             << "           | " << white_left_hand << " | " << white_right_hand << " |" << std::endl

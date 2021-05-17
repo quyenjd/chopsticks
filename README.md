@@ -1,10 +1,10 @@
 # Chopsticks
 
-More about the rule of the game can be found [here](https://en.wikipedia.org/wiki/Chopsticks_(hand_game)).
+More about the rules of the game can be found [here](https://en.wikipedia.org/wiki/Chopsticks_(hand_game)).
 
 ## Build
 
-Simply compile the `main.cpp` with the `include` and `src` directories and you are ready to go!
+Check the file [Chopsticks.cbp](Chopsticks.cbp) for build options. *Yes, I use CodeBlocks!*
 
 The code uses `windows.h` and other Windows API tools. It is recommended you run the project on Windows only.
 
@@ -31,11 +31,17 @@ static const short black_split_max = -1; // negative value for unlimited splits
 static const bool splits_as_moves = true;
 static const bool allow_sacrifical_splits = true;
 static const bool allow_regenerative_splits = true;
+static const bool meta_variant = false;
 ```
 
 ## Issues
 
-- Computer does not always select the best moves as the evaluation is based on probabilities.
+```
+terminate called after throwing an instance of 'std::system_error'
+  what():  Operation not permitted
+```
+
+This occurred whenever I started the multi-threading process of the evaluation. Even commenting the evaluation part (inside the `Evaluator::search` method) entirely still gives the error. Solutions such as `-lpthread`, `-pthread`, `-Wl,--no-as-needed` have been tested but **no working**. Any help is appreciated.
 
 ## License
 
