@@ -148,11 +148,11 @@ private:
                 bool maximizing = true);
 
 public:
-    node_data get_node_data(int hash_state);
-    node_data get_node_data(state game_state);
+    node_data get_node_data(int hash_state) const;
+    node_data get_node_data(state game_state) const;
     void evaluate_next_move(int hash_state);
     void evaluate_next_move(state game_state);
-    size_t get_last_number_of_evaluated_states();
+    size_t get_last_number_of_evaluated_states() const;
 };
 
 #endif // EVALUATOR_H

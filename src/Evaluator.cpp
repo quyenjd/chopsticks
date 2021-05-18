@@ -237,7 +237,7 @@ void Evaluator::search(state current,
     in_branch.set(false);
 }
 
-node_data Evaluator::get_node_data(int hash_state)
+node_data Evaluator::get_node_data(int hash_state) const
 {
     node_data ret;
 
@@ -253,7 +253,7 @@ node_data Evaluator::get_node_data(int hash_state)
     return ret;
 }
 
-node_data Evaluator::get_node_data(state game_state)
+node_data Evaluator::get_node_data(state game_state) const
 {
     return get_node_data(game_state.get_hash());
 }
@@ -274,7 +274,7 @@ void Evaluator::evaluate_next_move(state game_state)
     Pool.wait();
 }
 
-size_t Evaluator::get_last_number_of_evaluated_states()
+size_t Evaluator::get_last_number_of_evaluated_states() const
 {
     return state_evaluated.get();
 }

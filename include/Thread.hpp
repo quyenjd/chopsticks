@@ -147,7 +147,7 @@ namespace Thread
         }
 
     public:
-        ThreadPool (size_t __num_of_threads = 0): terminated(false)
+        ThreadPool (size_t __num_of_threads = 0): num_of_waiting_threads(0), terminated(false), paused(false)
         {
             _num_of_threads = __num_of_threads ? __num_of_threads : std::thread::hardware_concurrency();
 
@@ -194,7 +194,7 @@ namespace Thread
 
             auto ret = task->get_future();
             {
-                std::lock_guard<std::mutex> lock(mutex);
+                std::unique_lock<std::mutex> lock(mutex);
                 tasks.emplace([task]() { (*task)(); });
             }
 

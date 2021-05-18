@@ -29,6 +29,14 @@ namespace Thread
             return *it->second;
         }
 
+        Atomic<V>& operator[] (const K& key) const
+        {
+            auto it = table.find(key);
+            if (it == table.end())
+                throw std::runtime_error("Accessing unknown key in constant hash map is not allowed");
+            return *it->second;
+        }
+
         bool has_key (const K& key) const
         {
             auto it = table.find(key);

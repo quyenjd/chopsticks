@@ -4,7 +4,7 @@ More about the rules of the game can be found [here](https://en.wikipedia.org/wi
 
 ## Build
 
-Check the file [Chopsticks.cbp](Chopsticks.cbp) for build options. *Yes, I use CodeBlocks!*
+Simply build the project using `make`. Have fun!
 
 The code uses `windows.h` and other Windows API tools. It is recommended you run the project on Windows only.
 
